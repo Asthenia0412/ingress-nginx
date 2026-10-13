@@ -69,6 +69,9 @@ const (
 	luaSharedDictsKey             = "lua-shared-dicts"
 	debugConnections              = "debug-connections"
 	workerSerialReloads           = "enable-serial-reloads"
+	forwardedRFC7239              = "forwarded-rfc7239"
+	forwardedRFC7239For           = "forwarded-rfc7239-for"
+	forwardedRFC7239By            = "forwarded-rfc7239-by"
 )
 
 var (
@@ -84,6 +87,7 @@ var (
 		"ocsp_response_cache":           5120, // keep this same as certificate_servers
 	}
 	defaultGlobalAuthRedirectParam = "rd"
+	forwardedRFC7239ValidParams    = [...]string{"for", "by", "host", "proto"}
 )
 
 const (
@@ -435,6 +439,39 @@ func ReadConfig(src map[string]string) config.Configuration {
 		to.DebugConnections = debugConnectionsList
 	}
 
+	// Parse forwarded-rfc7239 parameter list
+	if val, ok := conf[forwardedRFC7239]; ok {
+		delete(conf, forwardedRFC7239)
+		params := []string{} // non-nil value
+		for _, param := range splitAndTrimSpace(val, ",") {
+			param = strings.ToLower(param)
+			if sliceContains(forwardedRFC7239ValidParams[:], param) {
+				if sliceContains(params, param) {
+					klog.Warningf("%v ignores duplicate parameter: %v", forwardedRFC7239, param)
+					continue
+				}
+				params = append(params, param)
+			}
+		}
+		to.ForwardedRFC7239 = params
+	}
+
+	// Validate forwarded-rfc7239-for obfuscated identifier
+	if val, ok := conf[forwardedRFC7239For]; ok {
+		if !isValidObfuscatedIdentifier(val) && val != "ip" {
+			delete(conf, forwardedRFC7239For)
+			klog.Warningf("%v is not a valid value, must be \"ip\" or a valid obfuscated identifier starting with underscore", val)
+		}
+	}
+
+	// Validate forwarded-rfc7239-by obfuscated identifier
+	if val, ok := conf[forwardedRFC7239By]; ok {
+		if !isValidObfuscatedIdentifier(val) && val != "ip" {
+			delete(conf, forwardedRFC7239By)
+			klog.Warningf("%v is not a valid value, must be \"ip\" or a valid obfuscated identifier starting with underscore", val)
+		}
+	}
+
 	to.CustomHTTPErrors = filterErrors(errors)
 	to.SkipAccessLogURLs = skipUrls
 	to.DenylistSourceRange = denyList
@@ -526,4 +563,20 @@ func dictKbToStr(size int) string {
 		return fmt.Sprintf("%dM", size/1024)
 	}
 	return fmt.Sprintf("%dK", size)
+}
+
+func sliceContains(slice []string, s string) bool {
+	for _, value := range slice {
+		if value == s {
+			return true
+		}
+	}
+	return false
+}
+
+// isValidObfuscatedIdentifier tests if s is a valid obfuscated identifier
+// as section 6.3 of rfc7239 defines.
+func isValidObfuscatedIdentifier(s string) bool {
+	re := regexp.MustCompile("^_[0-9a-zA-Z._-]*$")
+	return re.MatchString(s)
 }
