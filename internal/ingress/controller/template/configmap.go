@@ -504,19 +504,20 @@ func splitAndTrimSpace(s, sep string) []string {
 func splitAndTrimSpaceRespectingQuotes(s, sep string) []string {
 	var values []string
 	var current strings.Builder
-	var inQuote rune = 0
+	var inQuote rune
 	sepRunes := []rune(sep)
+	runes := []rune(s)
 
-	for i := 0; i < len(s); i++ {
-		c := rune(s[i])
+	for i := 0; i < len(runes); i++ {
+		c := runes[i]
 
 		switch {
 		case inQuote != 0:
 			// Inside a quoted section.
-			if c == '\\' && i+1 < len(s) {
+			if c == '\\' && i+1 < len(runes) {
 				// Escaped character: include literally.
 				current.WriteRune(c)
-				current.WriteRune(rune(s[i+1]))
+				current.WriteRune(runes[i+1])
 				i++
 				continue
 			}
