@@ -494,16 +494,73 @@ func filterErrors(codes []int) []int {
 
 //nolint:unparam // Ignore `sep` always receives `,` error
 func splitAndTrimSpace(s, sep string) []string {
-	f := func(c rune) bool {
-		return strings.EqualFold(string(c), sep)
+	return splitAndTrimSpaceRespectingQuotes(s, sep)
+}
+
+// splitAndTrimSpaceRespectingQuotes splits s by sep while respecting quoted
+// substrings (double or single). Commas inside quoted sections are not treated
+// as separators, which is needed for values such as block-user-agents that may
+// contain commas inside the quoted patterns.
+func splitAndTrimSpaceRespectingQuotes(s, sep string) []string {
+	var values []string
+	var current strings.Builder
+	var inQuote rune
+	sepRunes := []rune(sep)
+	runes := []rune(s)
+
+	for i := 0; i < len(runes); i++ {
+		c := runes[i]
+
+		switch {
+		case inQuote != 0:
+			// Inside a quoted section.
+			if c == '\\' && i+1 < len(runes) {
+				// Escaped character: include literally.
+				current.WriteRune(c)
+				current.WriteRune(runes[i+1])
+				i++
+				continue
+			}
+			if c == inQuote {
+				inQuote = 0
+			}
+			current.WriteRune(c)
+
+		case c == '"' || c == '\'':
+			inQuote = c
+			current.WriteRune(c)
+
+		case runeMatchesAny(c, sepRunes):
+			values = append(values, strings.TrimSpace(current.String()))
+			current.Reset()
+
+		default:
+			current.WriteRune(c)
+		}
 	}
 
-	values := strings.FieldsFunc(s, f)
-	for i := range values {
-		values[i] = strings.TrimSpace(values[i])
+	// Append the last (or only) element, trimmed.
+	if current.Len() > 0 {
+		values = append(values, strings.TrimSpace(current.String()))
 	}
 
-	return values
+	// Drop empty elements (preserves existing behaviour).
+	result := make([]string, 0, len(values))
+	for _, v := range values {
+		if v != "" {
+			result = append(result, v)
+		}
+	}
+	return result
+}
+
+func runeMatchesAny(c rune, targets []rune) bool {
+	for _, t := range targets {
+		if strings.EqualFold(string(c), string(t)) {
+			return true
+		}
+	}
+	return false
 }
 
 func dictStrToKb(sizeStr string) int {
