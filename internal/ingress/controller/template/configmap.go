@@ -86,8 +86,9 @@ var (
 		"certificate_servers":           5120,
 		"ocsp_response_cache":           5120, // keep this same as certificate_servers
 	}
-	defaultGlobalAuthRedirectParam = "rd"
-	forwardedRFC7239ValidParams    = [...]string{"for", "by", "host", "proto"}
+	defaultGlobalAuthRedirectParam      = "rd"
+	forwardedRFC7239ValidParams         = [...]string{"for", "by", "host", "proto"}
+	forwardedObfuscatedIdentifierRegexp = regexp.MustCompile("^_[0-9a-zA-Z._-]*$")
 )
 
 const (
@@ -460,6 +461,7 @@ func ReadConfig(src map[string]string) config.Configuration {
 	if val, ok := conf[forwardedRFC7239For]; ok {
 		if !isValidObfuscatedIdentifier(val) && val != "ip" {
 			delete(conf, forwardedRFC7239For)
+			to.ForwardedRFC7239For = "ip"
 			klog.Warningf("%v is not a valid value, must be \"ip\" or a valid obfuscated identifier starting with underscore", val)
 		}
 	}
@@ -468,6 +470,7 @@ func ReadConfig(src map[string]string) config.Configuration {
 	if val, ok := conf[forwardedRFC7239By]; ok {
 		if !isValidObfuscatedIdentifier(val) && val != "ip" {
 			delete(conf, forwardedRFC7239By)
+			to.ForwardedRFC7239By = "ip"
 			klog.Warningf("%v is not a valid value, must be \"ip\" or a valid obfuscated identifier starting with underscore", val)
 		}
 	}
@@ -575,8 +578,7 @@ func sliceContains(slice []string, s string) bool {
 }
 
 // isValidObfuscatedIdentifier tests if s is a valid obfuscated identifier
-// as section 6.3 of rfc7239 defines.
+// as section 6.3 of RFC 7239 defines.
 func isValidObfuscatedIdentifier(s string) bool {
-	re := regexp.MustCompile("^_[0-9a-zA-Z._-]*$")
-	return re.MatchString(s)
+	return forwardedObfuscatedIdentifierRegexp.MatchString(s)
 }

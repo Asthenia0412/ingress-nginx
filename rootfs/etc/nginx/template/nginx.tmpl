@@ -453,10 +453,10 @@ http {
     }
 
     {{ if eq "ip" $cfg.ForwardedRFC7239For }}
-    # Set proxy_forwarded_rfc2379_for as IP of remote end.
+    # Set proxy_forwarded_rfc7239_for as IP of remote end.
     # We use $remote_addr instead of $realip_remote_addr because we don't
     # translate "x-" header to standard forwarded header.
-    map $remote_addr $proxy_forwarded_rfc2379_for {
+    map $remote_addr $proxy_forwarded_rfc7239_for {
         # IPv4 addresses can be sent as-is
         ~^[0-9.]+$          "for=$remote_addr";
 
@@ -467,15 +467,15 @@ http {
         default             "for=unknown";
     }
     {{ else }}
-    # Set proxy_forwarded_rfc2379_for as a obfuscated string.
-    map $nginx_constant $proxy_forwarded_rfc2379_for {
+    # Set proxy_forwarded_rfc7239_for as a obfuscated string.
+    map $nginx_constant $proxy_forwarded_rfc7239_for {
         default "for={{ $cfg.ForwardedRFC7239For }}";
     }
     {{ end }}
 
     {{ if eq "ip" $cfg.ForwardedRFC7239By }}
-    # Set proxy_forwarded_rfc2379_by as "IP:port" that the remote end connects to.
-    map $server_addr $proxy_forwarded_rfc2379_by {
+    # Set proxy_forwarded_rfc7239_by as "IP:port" that the remote end connects to.
+    map $server_addr $proxy_forwarded_rfc7239_by {
         # IPv4:port need to be quoted since ":" is not a valid
         # header field value character.
         ~^[0-9.]+$          "by=\"$server_addr:$server_port\"";
@@ -487,17 +487,17 @@ http {
         default             "by=unknown";
     }
     {{ else }}
-    # Set proxy_forwarded_rfc2379_by as a static obfuscated string.
-    map $nginx_constant $proxy_forwarded_rfc2379_by {
+    # Set proxy_forwarded_rfc7239_by as a static obfuscated string.
+    map $nginx_constant $proxy_forwarded_rfc7239_by {
         default "by={{ $cfg.ForwardedRFC7239By }}";
     }
     {{ end }}
 
-    # Set proxy_forwarded_rfc2379_host as the original HOST header and quote
+    # Set proxy_forwarded_rfc7239_host as the original HOST header and quote
     # it if needed. Section 3.2.2 of RFC 3986 defines host syntax, and it must
     # be one of ipv4, ipv6, and reg-name optionaly followed by a port after
     # a colon.
-    map $http_host $proxy_forwarded_rfc2379_host {
+    map $http_host $proxy_forwarded_rfc7239_host {
         # IPv4 and reg-name formed of valid field value characters can be sent
         # as-is. The regular expression of IPv4 is subset of this one, and this
         # expression also matches IPv4.
@@ -520,14 +520,14 @@ http {
     }
 
     # Section 3.1 of RFC3986 defines scheme syntax.
-    map $scheme $proxy_forwarded_rfc2379_proto {
+    map $scheme $proxy_forwarded_rfc7239_proto {
         ~^[a-zA-Z][0-9a-zA-Z.+-]+$  "proto=$scheme";
         default                     "proto=unknown";
     }
 
     # Add incoming Forwarded header if valid and not strip.
     # Ref: https://www.nginx.com/resources/wiki/start/topics/examples/forwarded/#how-to-use-it-in-nginx
-    map $http_forwarded $proxy_forwarded_rfc2379_incoming {
+    map $http_forwarded $proxy_forwarded_rfc7239_incoming {
         {{ if not $cfg.ForwardedRFC7239StripIncoming }}
         # If the incoming Forwarded header is syntactically valid, use it.
         "~^(,[ \\t]*)*([!#$%&'*+.^_`|~0-9A-Za-z-]+=([!#$%&'*+.^_`|~0-9A-Za-z-]+|\"([\\t \\x21\\x23-\\x5B\\x5D-\\x7E\\x80-\\xFF]|\\\\[\\t \\x21-\\x7E\\x80-\\xFF])*\"))?(;([!#$%&'*+.^_`|~0-9A-Za-z-]+=([!#$%&'*+.^_`|~0-9A-Za-z-]+|\"([\\t \\x21\\x23-\\x5B\\x5D-\\x7E\\x80-\\xFF]|\\\\[\\t \\x21-\\x7E\\x80-\\xFF])*\"))?)*([ \\t]*,([ \\t]*([!#$%&'*+.^_`|~0-9A-Za-z-]+=([!#$%&'*+.^_`|~0-9A-Za-z-]+|\"([\\t \\x21\\x23-\\x5B\\x5D-\\x7E\\x80-\\xFF]|\\\\[\\t \\x21-\\x7E\\x80-\\xFF])*\"))?(;([!#$%&'*+.^_`|~0-9A-Za-z-]+=([!#$%&'*+.^_`|~0-9A-Za-z-]+|\"([\\t \\x21\\x23-\\x5B\\x5D-\\x7E\\x80-\\xFF]|\\\\[\\t \\x21-\\x7E\\x80-\\xFF])*\"))?)*)?)*$" "$http_forwarded";
@@ -541,7 +541,7 @@ http {
     }
 
     # Add a comma separator when both the incoming part and the current node's part exist.
-    map $proxy_forwarded_rfc2379_incoming $proxy_forwarded_rfc2379_sep {
+    map $proxy_forwarded_rfc7239_incoming $proxy_forwarded_rfc7239_sep {
         {{ if not $cfg.ForwardedRFC7239 }}
         # Pass through the incoming forwarded header.
         default '';
@@ -555,19 +555,19 @@ http {
 
     # Append Forwarded field to the existing Forwarded header after a comma separator,
     # or generate a new one if the incoming Forwarded header is invalid or empty.
-    map $proxy_forwarded_rfc2379_incoming $proxy_add_forwarded_rfc2379 {
-        default "$proxy_forwarded_rfc2379_incoming$proxy_forwarded_rfc2379_sep
+    map $proxy_forwarded_rfc7239_incoming $proxy_add_forwarded_rfc7239 {
+        default "$proxy_forwarded_rfc7239_incoming$proxy_forwarded_rfc7239_sep
         {{- /* NOTE: We need to trip both leading and trailing spaces to ensure the format correct. */ -}}
         {{- range $index, $param := $cfg.ForwardedRFC7239 -}}
         {{- if gt $index 0 -}} ; {{- end -}}
         {{- if eq "for" $param -}}
-            $proxy_forwarded_rfc2379_for
+            $proxy_forwarded_rfc7239_for
         {{- else if eq "by" $param -}}
-            $proxy_forwarded_rfc2379_by
+            $proxy_forwarded_rfc7239_by
         {{- else if eq "host" $param -}}
-            $proxy_forwarded_rfc2379_host
+            $proxy_forwarded_rfc7239_host
         {{- else if eq "proto" $param -}}
-            $proxy_forwarded_rfc2379_proto
+            $proxy_forwarded_rfc7239_proto
         {{- end -}}
         {{- end -}}
         ";
@@ -1196,7 +1196,7 @@ stream {
             {{ end }}
 
             {{ if $all.Cfg.EnableForwardedRFC7239 }}
-            proxy_set_header            Forwarded               $proxy_add_forwarded_rfc2379;
+            proxy_set_header            Forwarded               $proxy_add_forwarded_rfc7239;
             {{ end }}
 
             {{ if $externalAuth.RequestRedirect }}
@@ -1457,7 +1457,7 @@ stream {
             {{ $proxySetHeader }} X-Original-Forwarded-Host {{ buildForwardedHost $all.Cfg.ForwardedHostHeader }};
 
             {{ if $all.Cfg.EnableForwardedRFC7239 }}
-            {{ $proxySetHeader }} Forwarded              $proxy_add_forwarded_rfc2379;
+            {{ $proxySetHeader }} Forwarded              $proxy_add_forwarded_rfc7239;
             {{ end }}
 
             # mitigate HTTPoxy Vulnerability
